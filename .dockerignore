@@ -1,0 +1,14 @@
+node_modules
+dist
+.env
+.env.local
+.git
+.gitignore
+README.md
+.vscode
+.idea
+*.log
+coverage
+.DS_Store
+gcp-credentials.json
+
