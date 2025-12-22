@@ -1,7 +1,12 @@
 # Build stage
-FROM node:20-alpine AS builder
+FROM node:20-slim AS builder
 
 WORKDIR /app
+
+# Ensure libssl is available during build (Debian package)
+RUN apt-get update && \
+  apt-get install -y --no-install-recommends libssl-dev ca-certificates && \
+  rm -rf /var/lib/apt/lists/*
 
 # Copy package files
 COPY package*.json ./
@@ -20,15 +25,18 @@ COPY . .
 RUN npm run build
 
 # Production stage
-FROM node:20-alpine
+FROM node:20-slim
 
 WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
 
-# Install production dependencies only
-RUN npm ci --only=production
+# Install production dependencies only (and ensure libssl present)
+RUN apt-get update && \
+  apt-get install -y --no-install-recommends libssl-dev ca-certificates && \
+  rm -rf /var/lib/apt/lists/* && \
+  npm ci --only=production
 
 # Copy Prisma files and generate client
 COPY prisma ./prisma/
