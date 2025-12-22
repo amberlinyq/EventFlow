@@ -126,6 +126,7 @@ jobs:
         with:
           project_id: ${{ env.GCP_PROJECT }}
           service_account_key: ${{ secrets.GCP_SA_KEY }}
+          export_default_credentials: true
 
       # 4️⃣ Deploy to Cloud Run
       - name: Deploy to Cloud Run
@@ -136,3 +137,13 @@ jobs:
             --region ${{ env.CLOUD_RUN_REGION }} \
             --allow-unauthenticated \
             --project ${{ env.GCP_PROJECT }}
+
+      # 5️⃣ Print Cloud Run URL
+      - name: Print Cloud Run URL
+        run: |
+          URL=$(gcloud run services describe ${{ env.CLOUD_RUN_SERVICE }} \
+            --platform managed \
+            --region ${{ env.CLOUD_RUN_REGION }} \
+            --project ${{ env.GCP_PROJECT }} \
+            --format="value(status.url)")
+          echo "Cloud Run URL: $URL"
