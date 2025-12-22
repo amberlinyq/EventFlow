@@ -126,7 +126,7 @@ jobs:
         with:
           project_id: ${{ env.GCP_PROJECT }}
           service_account_key: ${{ secrets.GCP_SA_KEY }}
-          export_default_credentials: false
+          export_default_credentials: true
           activate_service_account: true
 
       # 4️⃣ Deploy to Cloud Run
