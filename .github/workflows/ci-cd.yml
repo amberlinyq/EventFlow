@@ -125,14 +125,15 @@ jobs:
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ env.GCP_PROJECT }}
-          service_account_key: ${{ secrets.GCP_SA_KEY }}
           export_default_credentials: true
 
-      # Explicit authentication (ensures active account)
+      # Explicit authentication using service account JSON file
       - name: Authenticate gcloud explicitly
-        run: gcloud auth activate-service-account --key-file="${{ secrets.GCP_SA_KEY }}"
+        run: |
+          echo "${{ secrets.GCP_SA_KEY }}" > key.json
+          gcloud auth activate-service-account --key-file=key.json
 
-      # Debug gcloud to confirm active account
+      # Debug step to confirm active account
       - name: Debug gcloud auth
         run: gcloud auth list
 
@@ -155,3 +156,4 @@ jobs:
             --project ${{ env.GCP_PROJECT }} \
             --format="value(status.url)")
           echo "Cloud Run URL: $URL"
+
