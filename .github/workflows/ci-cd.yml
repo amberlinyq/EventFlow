@@ -103,7 +103,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # 1️⃣ Log in to GitHub Container Registry
+      # Log in to GitHub Container Registry
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
@@ -111,7 +111,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # 2️⃣ Build and push Docker image
+      # Build & push Docker image
       - name: Build & push Docker image
         uses: docker/build-push-action@v5
         with:
@@ -120,16 +120,23 @@ jobs:
             ghcr.io/${{ github.repository_owner }}/eventflow:latest
             ghcr.io/${{ github.repository_owner }}/eventflow:${{ github.sha }}
 
-      # 3️⃣ Set up Google Cloud SDK
+      # Set up Google Cloud SDK
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ env.GCP_PROJECT }}
           service_account_key: ${{ secrets.GCP_SA_KEY }}
           export_default_credentials: true
-          activate_service_account: true
 
-      # 4️⃣ Deploy to Cloud Run
+      # Explicit authentication (ensures active account)
+      - name: Authenticate gcloud explicitly
+        run: gcloud auth activate-service-account --key-file="${{ secrets.GCP_SA_KEY }}"
+
+      # Debug gcloud to confirm active account
+      - name: Debug gcloud auth
+        run: gcloud auth list
+
+      # Deploy to Cloud Run
       - name: Deploy to Cloud Run
         run: |
           gcloud run deploy ${{ env.CLOUD_RUN_SERVICE }} \
@@ -139,7 +146,7 @@ jobs:
             --allow-unauthenticated \
             --project ${{ env.GCP_PROJECT }}
 
-      # 5️⃣ Print Cloud Run URL
+      # Print Cloud Run URL
       - name: Print Cloud Run URL
         run: |
           URL=$(gcloud run services describe ${{ env.CLOUD_RUN_SERVICE }} \
