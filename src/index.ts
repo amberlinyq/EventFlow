@@ -20,7 +20,7 @@ app.use(express.json());
 app.use(pinoHttp({ logger }));
 
 // Health check
-app.get('/health', (req, res) => {
+app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
@@ -75,4 +75,3 @@ process.on('SIGINT', async () => {
 });
 
 startServer();
-

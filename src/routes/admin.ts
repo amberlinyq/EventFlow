@@ -111,7 +111,7 @@ router.post(
 // Get processing metrics
 router.get(
   '/metrics',
-  asyncHandler(async (req: Request, res: Response) => {
+  asyncHandler(async (_req: Request, res: Response) => {
     const [total, pending, processing, processed, failed, deadLetter] = await Promise.all([
       prisma.event.count(),
       prisma.event.count({ where: { status: 'PENDING' } }),
