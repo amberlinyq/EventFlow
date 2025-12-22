@@ -1,7 +1,6 @@
 import { pubsubService } from './services/pubsub';
 import { processEvent } from './services/eventProcessor';
 import { logger } from './utils/logger';
-import { env } from './config/env';
 import prisma from './db/client';
 
 async function startWorker() {
@@ -14,7 +13,7 @@ async function startWorker() {
   // Configure message handling
   subscription.on('message', async (message) => {
     let eventId: string;
-    
+
     try {
       const data = JSON.parse(message.data.toString());
       eventId = data.eventId;
@@ -38,7 +37,7 @@ async function startWorker() {
       logger.info({ eventId }, 'Message acknowledged');
     } catch (error) {
       logger.error({ error, eventId }, 'Failed to process event');
-      
+
       // Check retry count
       const event = await prisma.event.findUnique({
         where: { id: eventId },
@@ -81,4 +80,3 @@ startWorker().catch((error) => {
   logger.error({ error }, 'Failed to start worker');
   process.exit(1);
 });
-

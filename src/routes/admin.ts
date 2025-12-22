@@ -1,5 +1,4 @@
 import { Router, Request, Response } from 'express';
-import { z } from 'zod';
 import prisma from '../db/client';
 import { pubsubService } from '../services/pubsub';
 import { asyncHandler, AppError } from '../middleware/errorHandler';
@@ -171,4 +170,3 @@ router.get(
 );
 
 export default router;
-

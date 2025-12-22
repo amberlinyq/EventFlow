@@ -16,8 +16,7 @@ export class AppError extends Error {
 export const errorHandler = (
   err: Error | AppError | ZodError,
   req: Request,
-  res: Response,
-  next: NextFunction
+  res: Response
 ): void => {
   if (err instanceof ZodError) {
     logger.warn({ errors: err.errors, path: req.path }, 'Validation error');
@@ -29,7 +28,10 @@ export const errorHandler = (
   }
 
   if (err instanceof AppError) {
-    logger.warn({ statusCode: err.statusCode, message: err.message, path: req.path }, 'Application error');
+    logger.warn(
+      { statusCode: err.statusCode, message: err.message, path: req.path },
+      'Application error'
+    );
     res.status(err.statusCode).json({
       error: err.message,
     });
@@ -48,4 +50,3 @@ export const asyncHandler = (fn: Function) => {
     Promise.resolve(fn(req, res, next)).catch(next);
   };
 };
-
