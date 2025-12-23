@@ -127,8 +127,6 @@ jobs:
             --platform managed \
             --allow-unauthenticated \
             --port 8080 \
-            --timeout 300 \
-            --memory 512Mi
 
       # Print service URL
       - name: Print Cloud Run URL
