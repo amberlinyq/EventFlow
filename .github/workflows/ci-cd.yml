@@ -100,6 +100,11 @@ jobs:
           gcloud auth activate-service-account \
             --key-file="${HOME}/gcp-key.json"
           gcloud config set project ${{ env.GCP_PROJECT }}
+          gcloud run deploy ${{ env.CLOUD_RUN_SERVICE }} \
+            --source . \
+            --region ${{ env.CLOUD_RUN_REGION }} \
+            --platform managed \
+            --allow-unauthenticated
 
       - name: Verify gcloud auth
         run: gcloud auth list
