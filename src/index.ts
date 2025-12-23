@@ -33,42 +33,42 @@ app.use(errorHandler);
 
 // Start server
 async function startServer() {
-  const port = env.PORT;
-  
+  // Cloud Run injects PORT; fallback to 8080 for local dev
+  const port = Number(process.env.PORT) || 8080;
+
   // Start listening immediately so Cloud Run health checks pass
   app.listen(port, '0.0.0.0', () => {
     logger.info({ port, env: env.NODE_ENV }, 'Server started and listening');
   });
 
-  // Initialize services in background (non-blocking)
-  // This allows the server to start even if services take time to connect
+  // Initialize services in the background (non-blocking)
   (async () => {
     try {
-      // Initialize Pub/Sub (non-blocking)
+      // Pub/Sub initialization
       try {
         await pubsubService.initialize();
         logger.info('Pub/Sub initialized');
       } catch (error) {
-        logger.warn({ error }, 'Pub/Sub initialization failed (non-critical, continuing...)');
+        logger.warn({ error }, 'Pub/Sub initialization failed (non-critical)');
       }
 
-      // Initialize BigQuery (non-blocking)
+      // BigQuery initialization
       try {
         await bigqueryService.initialize();
         logger.info('BigQuery initialized');
       } catch (error) {
-        logger.warn({ error }, 'BigQuery initialization failed (non-critical, continuing...)');
+        logger.warn({ error }, 'BigQuery initialization failed (non-critical)');
       }
 
-      // Test database connection (required but non-blocking for startup)
+      // Prisma database connection
       try {
         await prisma.$connect();
         logger.info('Database connected');
       } catch (error) {
-        logger.error({ error }, 'Database connection failed - some features may not work');
+        logger.error({ error }, 'Database connection failed (some features may not work)');
       }
     } catch (error) {
-      logger.error({ error }, 'Error during service initialization');
+      logger.error({ error }, 'Error during background service initialization');
     }
   })();
 }
