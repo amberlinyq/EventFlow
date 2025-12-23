@@ -8,7 +8,7 @@ const envSchema = z.object({
   PORT: z
     .string()
     .optional()
-    .transform((val) => Number(val || process.env.PORT || '3000')), // Cloud Run sets PORT=8080 automatically
+    .transform((val) => Number(val || process.env.PORT || '8080')), // Cloud Run sets PORT=8080, default to 8080
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   GCP_PROJECT_ID: z.string(),
   PUBSUB_TOPIC_NAME: z.string().default('events'),

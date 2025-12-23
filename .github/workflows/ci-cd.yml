@@ -127,6 +127,12 @@ jobs:
             --platform managed \
             --allow-unauthenticated \
             --port 8080 \
+            --timeout 300 \
+            --memory 512Mi \
+            --cpu 1 \
+            --min-instances 0 \
+            --max-instances 10 \
+            --set-env-vars "DATABASE_URL=${{ secrets.DATABASE_URL }},GCP_PROJECT_ID=${{ env.GCP_PROJECT }},PUBSUB_TOPIC_NAME=events,PUBSUB_SUBSCRIPTION_NAME=events-worker,BIGQUERY_DATASET_ID=eventflow,BIGQUERY_TABLE_ID=events,NODE_ENV=production,LOG_LEVEL=info"
 
       # Print service URL
       - name: Print Cloud Run URL

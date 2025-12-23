@@ -33,30 +33,44 @@ app.use(errorHandler);
 
 // Start server
 async function startServer() {
-  try {
-    // Initialize Pub/Sub
-    await pubsubService.initialize();
+  const port = env.PORT;
+  
+  // Start listening immediately so Cloud Run health checks pass
+  app.listen(port, '0.0.0.0', () => {
+    logger.info({ port, env: env.NODE_ENV }, 'Server started and listening');
+  });
 
-    // Initialize BigQuery (non-blocking - server can start even if BigQuery fails)
+  // Initialize services in background (non-blocking)
+  // This allows the server to start even if services take time to connect
+  (async () => {
     try {
-      await bigqueryService.initialize();
-      logger.info('BigQuery initialized');
+      // Initialize Pub/Sub (non-blocking)
+      try {
+        await pubsubService.initialize();
+        logger.info('Pub/Sub initialized');
+      } catch (error) {
+        logger.warn({ error }, 'Pub/Sub initialization failed (non-critical, continuing...)');
+      }
+
+      // Initialize BigQuery (non-blocking)
+      try {
+        await bigqueryService.initialize();
+        logger.info('BigQuery initialized');
+      } catch (error) {
+        logger.warn({ error }, 'BigQuery initialization failed (non-critical, continuing...)');
+      }
+
+      // Test database connection (required but non-blocking for startup)
+      try {
+        await prisma.$connect();
+        logger.info('Database connected');
+      } catch (error) {
+        logger.error({ error }, 'Database connection failed - some features may not work');
+      }
     } catch (error) {
-      logger.warn({ error }, 'BigQuery initialization failed (non-critical, continuing...)');
+      logger.error({ error }, 'Error during service initialization');
     }
-
-    // Test database connection
-    await prisma.$connect();
-    logger.info('Database connected');
-
-    const port = env.PORT;
-    app.listen(port, '0.0.0.0', () => {
-      logger.info({ port, env: env.NODE_ENV }, 'Server started');
-    });
-  } catch (error) {
-    logger.error({ error }, 'Failed to start server');
-    process.exit(1);
-  }
+  })();
 }
 
 // Graceful shutdown
