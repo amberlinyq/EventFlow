@@ -50,7 +50,7 @@ async function startServer() {
     logger.info('Database connected');
 
     const port = env.PORT;
-    app.listen(port, () => {
+    app.listen(port, '0.0.0.0', () => {
       logger.info({ port, env: env.NODE_ENV }, 'Server started');
     });
   } catch (error) {

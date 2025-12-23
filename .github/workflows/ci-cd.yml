@@ -125,7 +125,11 @@ jobs:
             --image $IMAGE \
             --region ${{ env.CLOUD_RUN_REGION }} \
             --platform managed \
-            --allow-unauthenticated
+            --allow-unauthenticated \
+            --set-env-vars PORT=8080 \
+            --port 8080 \
+            --timeout 300 \
+            --memory 512Mi
 
       # Print service URL
       - name: Print Cloud Run URL

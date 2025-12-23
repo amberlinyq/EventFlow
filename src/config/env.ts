@@ -5,7 +5,10 @@ dotenv.config();
 
 const envSchema = z.object({
   DATABASE_URL: z.string().url(),
-  PORT: z.string().transform(Number).default('3000'),
+  PORT: z
+    .string()
+    .optional()
+    .transform((val) => Number(val || process.env.PORT || '3000')), // Cloud Run sets PORT=8080 automatically
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   GCP_PROJECT_ID: z.string(),
   PUBSUB_TOPIC_NAME: z.string().default('events'),
