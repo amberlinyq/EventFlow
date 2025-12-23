@@ -103,7 +103,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Log in to GitHub Container Registry
+      # Login to GHCR
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
@@ -120,20 +120,22 @@ jobs:
             ghcr.io/${{ github.repository_owner }}/eventflow:latest
             ghcr.io/${{ github.repository_owner }}/eventflow:${{ github.sha }}
 
-      # Set up Google Cloud SDK
+      # Install gcloud (NO auth here)
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ env.GCP_PROJECT }}
-          service_account_key: ${{ secrets.GCP_SA_KEY }}
-          export_default_credentials: true
 
-      # Explicit authentication (ensures active account)
-      - name: Authenticate gcloud explicitly
-        run: gcloud auth activate-service-account --key-file="${{ secrets.GCP_SA_KEY }}"
+      # ✅ CORRECT AUTHENTICATION
+      - name: Authenticate to Google Cloud
+        run: |
+          echo '${{ secrets.GCP_SA_KEY }}' > "${HOME}/gcp-key.json"
+          gcloud auth activate-service-account \
+            --key-file="${HOME}/gcp-key.json"
+          gcloud config set project ${{ env.GCP_PROJECT }}
 
-      # Debug gcloud to confirm active account
-      - name: Debug gcloud auth
+      # Optional sanity check
+      - name: Verify gcloud auth
         run: gcloud auth list
 
       # Deploy to Cloud Run
@@ -141,17 +143,13 @@ jobs:
         run: |
           gcloud run deploy ${{ env.CLOUD_RUN_SERVICE }} \
             --image ghcr.io/${{ github.repository_owner }}/eventflow:latest \
-            --platform managed \
             --region ${{ env.CLOUD_RUN_REGION }} \
-            --allow-unauthenticated \
-            --project ${{ env.GCP_PROJECT }}
+            --platform managed \
+            --allow-unauthenticated
 
-      # Print Cloud Run URL
+      # Print service URL
       - name: Print Cloud Run URL
         run: |
-          URL=$(gcloud run services describe ${{ env.CLOUD_RUN_SERVICE }} \
-            --platform managed \
+          gcloud run services describe ${{ env.CLOUD_RUN_SERVICE }} \
             --region ${{ env.CLOUD_RUN_REGION }} \
-            --project ${{ env.GCP_PROJECT }} \
-            --format="value(status.url)")
-          echo "Cloud Run URL: $URL"
+            --format="value(status.url)"
