@@ -103,6 +103,10 @@ jobs:
             --key-file="${HOME}/gcp-key.json"
           gcloud config set project ${{ env.GCP_PROJECT }}
 
+      # Configure Docker to use gcloud as a credential helper
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker us-central1-docker.pkg.dev
+
       - name: Verify gcloud auth
         run: gcloud auth list
 
