@@ -126,7 +126,6 @@ jobs:
             --region ${{ env.CLOUD_RUN_REGION }} \
             --platform managed \
             --allow-unauthenticated \
-            --set-env-vars PORT=8080 \
             --port 8080 \
             --timeout 300 \
             --memory 512Mi
