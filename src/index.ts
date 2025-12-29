@@ -33,59 +33,46 @@ app.use(errorHandler);
 
 // Start server
 async function startServer() {
-  // Cloud Run injects PORT; fallback to 8080 for local dev
-  const port = Number(process.env.PORT) || 8080;
+  const port = env.PORT || 8080;
 
-  // Start listening immediately so Cloud Run health checks pass
+  // 1. Start listening IMMEDIATELY (Crucial for Cloud Run)
   app.listen(port, '0.0.0.0', () => {
-    logger.info({ port, env: env.NODE_ENV }, 'Server started and listening');
+    logger.info({ port, env: env.NODE_ENV }, '🚀 Server started and listening');
   });
 
-  // Initialize services in the background (non-blocking)
-  (async () => {
-    try {
-      // Pub/Sub initialization
-      try {
-        await pubsubService.initialize();
-        logger.info('Pub/Sub initialized');
-      } catch (error) {
-        logger.warn({ error }, 'Pub/Sub initialization failed (non-critical)');
-      }
+  // 2. Initialize services in the background
+  try {
+    // Database connection
+    await prisma
+      .$connect()
+      .then(() => logger.info('✅ Database connected'))
+      .catch((err) => logger.error({ err }, '❌ Database connection failed'));
 
-      // BigQuery initialization
-      try {
-        await bigqueryService.initialize();
-        logger.info('BigQuery initialized');
-      } catch (error) {
-        logger.warn({ error }, 'BigQuery initialization failed (non-critical)');
-      }
+    // Pub/Sub
+    await pubsubService
+      .initialize()
+      .then(() => logger.info('✅ Pub/Sub initialized'))
+      .catch((err) => logger.warn({ err }, '⚠️ Pub/Sub init failed'));
 
-      // Prisma database connection
-      try {
-        await prisma.$connect();
-        logger.info('Database connected');
-      } catch (error) {
-        logger.error({ error }, 'Database connection failed (some features may not work)');
-      }
-    } catch (error) {
-      logger.error({ error }, 'Error during background service initialization');
-    }
-  })();
+    // BigQuery
+    await bigqueryService
+      .initialize()
+      .then(() => logger.info('✅ BigQuery initialized'))
+      .catch((err) => logger.warn({ err }, '⚠️ BigQuery init failed'));
+  } catch (error) {
+    logger.error({ error }, 'Unexpected error during background initialization');
+  }
 }
 
 // Graceful shutdown
-process.on('SIGTERM', async () => {
-  logger.info('SIGTERM received, shutting down gracefully...');
+const shutdown = async (signal: string) => {
+  logger.info(`${signal} received, shutting down gracefully...`);
   await bigqueryService.flush();
   await prisma.$disconnect();
   process.exit(0);
-});
+};
 
-process.on('SIGINT', async () => {
-  logger.info('SIGINT received, shutting down gracefully...');
-  await bigqueryService.flush();
-  await prisma.$disconnect();
-  process.exit(0);
-});
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 
 startServer();

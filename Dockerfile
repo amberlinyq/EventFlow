@@ -1,57 +1,47 @@
-# Build stage
+# --- Build stage ---
 FROM node:20-slim AS builder
 
 WORKDIR /app
 
-# Ensure libssl is available during build (Debian package)
+# Install openssl for Prisma during build
 RUN apt-get update && \
-  apt-get install -y --no-install-recommends libssl-dev ca-certificates && \
-  rm -rf /var/lib/apt/lists/*
+    apt-get install -y --no-install-recommends openssl && \
+    rm -rf /var/lib/apt/lists/*
 
-# Copy package files
 COPY package*.json ./
 COPY prisma ./prisma/
 
-# Install dependencies
 RUN npm ci
-
-# Generate Prisma Client
 RUN npx prisma generate
 
-# Copy source code
 COPY . .
-
-# Build TypeScript
 RUN npm run build
 
-# Production stage
+# --- Production stage ---
 FROM node:20-slim
 
 WORKDIR /app
 
-# Copy package files
+# CRITICAL: Install openssl and ca-certificates for Prisma and GCP APIs
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends openssl ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
 COPY package*.json ./
 
-# Install production dependencies only (and ensure libssl present)
-RUN apt-get update && \
-  apt-get install -y --no-install-recommends libssl-dev ca-certificates && \
-  rm -rf /var/lib/apt/lists/* && \
-  npm ci --only=production
+# Install only production dependencies
+RUN npm ci --only=production
 
-# Copy Prisma files and generate client
+# Re-generate Prisma client for the production runtime environment
 COPY prisma ./prisma/
 RUN npx prisma generate
 
-# Copy built application
+# Copy build artifacts from builder stage
 COPY --from=builder /app/dist ./dist
 
-# Expose port (Cloud Run uses PORT env var, default to 8080)
+# Cloud Run defaults to port 8080
+ENV PORT=8080
 EXPOSE 8080
 
-# Health check (use PORT env var or default to 8080)
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD node -e "const port = process.env.PORT || '8080'; require('http').get('http://localhost:' + port + '/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
-
-# Start application
+# Start the application
 CMD ["node", "dist/index.js"]
-

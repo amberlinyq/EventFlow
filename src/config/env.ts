@@ -4,18 +4,20 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const envSchema = z.object({
-  DATABASE_URL: z.string().url(),
-  PORT: z
-    .string()
-    .optional()
-    .transform((val) => Number(val || process.env.PORT || '8080')), // Cloud Run sets PORT=8080, default to 8080
+  // DATABASE_URL must be a valid postgresql:// string
+  DATABASE_URL: z.string().min(1, 'DATABASE_URL is missing').url('Invalid URL format'),
+
+  // Coerce converts the string "8080" from Cloud Run into a number 8080
+  PORT: z.coerce.number().default(8080),
+
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-  GCP_PROJECT_ID: z.string(),
+  GCP_PROJECT_ID: z.string().min(1, 'GCP_PROJECT_ID is missing'),
+
   PUBSUB_TOPIC_NAME: z.string().default('events'),
   PUBSUB_SUBSCRIPTION_NAME: z.string().default('events-worker'),
-  GCP_CREDENTIALS_PATH: z.string().optional(),
   BIGQUERY_DATASET_ID: z.string().default('eventflow'),
   BIGQUERY_TABLE_ID: z.string().default('events'),
+
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
 });
 
@@ -31,10 +33,10 @@ try {
     error.errors.forEach((err) => {
       console.error(`  ${err.path.join('.')}: ${err.message}`);
     });
+    // This exits early so Cloud Run knows immediately if the config is wrong
     process.exit(1);
   }
   throw error;
 }
 
 export { env };
-
