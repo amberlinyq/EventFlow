@@ -77,10 +77,10 @@ jobs:
       - name: 'Set up Cloud SDK'
         uses: 'google-github-actions/setup-gcloud@v2'
 
-      - name: Run Database Migrations
-        run: npx prisma migrate deploy
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      # - name: Run Database Migrations
+      #   run: npx prisma migrate deploy
+      #   env:
+      #     DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
       # 2. Authenticate Docker to Artifact Registry
       - name: Configure Docker for Artifact Registry
