@@ -1,19 +1,43 @@
 # EventFlow
 
-A production-ready backend system for ingesting, storing, and processing events asynchronously. Built with Node.js, TypeScript, PostgreSQL, and Google Cloud Platform.
+### **High-Throughput Event Ingestion & Asynchronous Processing Engine**
 
-## Overview
+## The "Why"
 
-EventFlow is designed to handle high-volume event ingestion with reliable asynchronous processing. It provides:
+In modern applications, user actions (clicks, signups, sensor data) generate a massive stream of data.
 
-- **Event Ingestion API**: RESTful endpoint for receiving and validating events
-- **Dual Storage**: Events stored in both PostgreSQL (operational) and BigQuery (analytics)
-- **Asynchronous Processing**: Google Cloud Pub/Sub for reliable event queuing
-- **Database Storage**: PostgreSQL with Prisma ORM for persistent event storage
-- **Analytics Storage**: BigQuery for large-scale event analytics and reporting
-- **Admin Dashboard**: Endpoints for monitoring, replaying failed events, and viewing metrics
-- **Error Handling**: Automatic retries with dead-letter queue support
-- **CI/CD**: Automated testing and deployment via GitHub Actions
+**The Problem:** If an API tries to save data to a primary database, sync it with an analytics warehouse, and trigger background logic all in one request, the system becomes a **bottleneck**:
+
+1. **High Latency:** Users wait for every database write to finish before getting a confirmation.
+2. **Fragility:** If the analytics warehouse is slow or down, the entire user-facing API fails.
+3. **Data Loss:** Sudden traffic spikes can overwhelm a single database instance.
+
+**The Solution:**
+EventFlow solves this by implementing an **Event-Driven Architecture**. By decoupling ingestion from processing, we ensure the API remains lightning-fast and highly available, even under heavy load.
+
+---
+
+## System Architecture & Design Decisions
+
+### 1. The "Ingest & Forget" Pattern
+
+The API validates the event and immediately drops it into **Google Cloud Pub/Sub**. This ensures sub-100ms response times. We trade "Strict Consistency" for **"Eventual Consistency"**—the data might take a few seconds to appear in BigQuery, but the user experience never suffers.
+
+### 2. Polyglot Persistence
+
+I chose a dual-storage strategy because one database cannot do everything:
+
+- **PostgreSQL (via Prisma):** Handles operational data. It is the "Source of Truth" for event status (PENDING, PROCESSED, FAILED).
+- **BigQuery:** Handles long-term analytics. Its columnar storage is optimized for scanning millions of rows without impacting API performance.
+
+### 3. Resilience & Fault Tolerance
+
+Distributed systems fail in creative ways. EventFlow is built to handle it:
+
+- **Retries:** If the Worker fails, Pub/Sub redelivers the message with exponential backoff.
+- **Dead-Letter Queue (DLQ):** Events that fail 3+ times are moved to a "Dead Letter" state in Postgres, allowing for manual inspection and replay via the Admin API.
+
+---
 
 ## Architecture
 
@@ -114,6 +138,7 @@ EventFlow is designed to handle high-volume event ingestion with reliable asynch
 - Events are batched and flushed automatically when buffer reaches 10 events
 
 **Request Example:**
+
 ```bash
 curl -X POST http://localhost:8080/events \
   -H "Content-Type: application/json" \
@@ -132,6 +157,7 @@ curl -X POST http://localhost:8080/events \
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -151,6 +177,7 @@ curl -X POST http://localhost:8080/events \
 ### 3. Admin Endpoints
 
 #### Get Failed Events
+
 ```
 GET /admin/events/failed?page=1&limit=50
 ```
@@ -158,6 +185,7 @@ GET /admin/events/failed?page=1&limit=50
 Returns paginated list of failed and dead-letter events.
 
 #### Replay Failed Event
+
 ```
 POST /admin/events/:id/replay
 ```
@@ -165,11 +193,13 @@ POST /admin/events/:id/replay
 Resets event status and re-queues it for processing.
 
 #### View Metrics
+
 ```
 GET /admin/metrics
 ```
 
 Returns:
+
 - Event counts by status (pending, processing, processed, failed, dead-letter)
 - Events grouped by type
 - Average processing time
@@ -209,18 +239,21 @@ Returns:
 ### Local Development
 
 1. **Clone the repository**
+
    ```bash
    git clone <repository-url>
    cd EventFlow
    ```
 
 2. **Install dependencies**
+
    ```bash
    npm install
    ```
 
 3. **Set up environment variables**
-   Create a `.env` file (you can copy from `env.template`):
+   Create a `.env` file:
+
    ```env
    DATABASE_URL="postgresql://user:password@localhost:5432/eventflow?schema=public"
    PORT=8080
@@ -235,10 +268,11 @@ Returns:
    ```
 
 4. **Set up database**
+
    ```bash
    # Generate Prisma Client
    npm run prisma:generate
-   
+
    # Run migrations
    npm run prisma:migrate
    ```
@@ -254,10 +288,11 @@ Returns:
    - The BigQuery dataset and table will be created automatically on first run
 
 6. **Start the API server**
+
    ```bash
    npm run dev
    ```
-   
+
    The server will:
    - Start listening immediately on port 8080 (or PORT from .env) for Cloud Run compatibility
    - Initialize database connection in the background
@@ -265,10 +300,11 @@ Returns:
    - Log initialization status for each service
 
 7. **Start the worker (in a separate terminal)**
+
    ```bash
    npm run dev:worker
    ```
-   
+
    The worker will:
    - Create Pub/Sub subscription if it doesn't exist
    - Listen for messages and process events
@@ -277,12 +313,14 @@ Returns:
 ### Docker Deployment
 
 #### Build and run API server
+
 ```bash
 docker build -t eventflow-api -f Dockerfile .
 docker run -p 8080:8080 --env-file .env eventflow-api
 ```
 
 #### Build and run worker
+
 ```bash
 docker build -t eventflow-worker -f Dockerfile.worker .
 docker run --env-file .env eventflow-worker
@@ -291,11 +329,13 @@ docker run --env-file .env eventflow-worker
 ### Google Cloud Run Deployment
 
 1. **Build and push Docker image**
+
    ```bash
    gcloud builds submit --tag gcr.io/[PROJECT-ID]/eventflow
    ```
 
 2. **Deploy API service**
+
    ```bash
    gcloud run deploy eventflow-api \
      --image gcr.io/[PROJECT-ID]/eventflow \
@@ -339,9 +379,11 @@ The project includes GitHub Actions workflow for automated CI/CD:
 ### Events
 
 #### POST /events
+
 Ingest a new event.
 
 **Request Body:**
+
 ```json
 {
   "eventType": "string (required, 1-100 chars)",
@@ -351,6 +393,7 @@ Ingest a new event.
 ```
 
 **Response:** `201 Created`
+
 ```json
 {
   "success": true,
@@ -362,13 +405,16 @@ Ingest a new event.
 ### Admin
 
 #### GET /admin/events/failed
+
 Get paginated list of failed events.
 
 **Query Parameters:**
+
 - `page` (optional, default: 1)
 - `limit` (optional, default: 50)
 
 **Response:** `200 OK`
+
 ```json
 {
   "events": [...],
@@ -382,9 +428,11 @@ Get paginated list of failed events.
 ```
 
 #### GET /admin/events/:id
+
 Get event by ID.
 
 **Response:** `200 OK`
+
 ```json
 {
   "id": "uuid",
@@ -396,9 +444,11 @@ Get event by ID.
 ```
 
 #### POST /admin/events/:id/replay
+
 Replay a failed event.
 
 **Response:** `200 OK`
+
 ```json
 {
   "success": true,
@@ -408,9 +458,11 @@ Replay a failed event.
 ```
 
 #### GET /admin/metrics
+
 Get processing metrics.
 
 **Response:** `200 OK`
+
 ```json
 {
   "summary": {
@@ -435,9 +487,11 @@ Get processing metrics.
 ### Health Check
 
 #### GET /health
-Health check endpoint. Used by Cloud Run and load balancers to verify service availability.
+
+Health check endpoint.
 
 **Response:** `200 OK`
+
 ```json
 {
   "status": "ok",
@@ -470,25 +524,26 @@ This implementation is compatible with BigQuery Sandbox (free tier) by using **b
 ### Configuration
 
 The batching behavior can be adjusted in `src/services/bigquery.ts`:
+
 - `BATCH_SIZE`: Number of events before auto-flush (default: 10)
 
 ## Database Schema
 
 ### Events Table (PostgreSQL)
 
-| Column | Type | Description |
-|--------|------|-------------|
-| id | UUID | Primary key |
-| eventType | String | Type of event |
-| payload | JSON | Event data |
-| metadata | JSON | Optional metadata |
-| status | Enum | PENDING, PROCESSING, PROCESSED, FAILED, DEAD_LETTER |
-| processedAt | DateTime | When event was processed |
-| failedAt | DateTime | When event failed |
-| failureReason | String | Reason for failure |
-| retryCount | Int | Number of retry attempts |
-| createdAt | DateTime | Creation timestamp |
-| updatedAt | DateTime | Last update timestamp |
+| Column        | Type     | Description                                         |
+| ------------- | -------- | --------------------------------------------------- |
+| id            | UUID     | Primary key                                         |
+| eventType     | String   | Type of event                                       |
+| payload       | JSON     | Event data                                          |
+| metadata      | JSON     | Optional metadata                                   |
+| status        | Enum     | PENDING, PROCESSING, PROCESSED, FAILED, DEAD_LETTER |
+| processedAt   | DateTime | When event was processed                            |
+| failedAt      | DateTime | When event failed                                   |
+| failureReason | String   | Reason for failure                                  |
+| retryCount    | Int      | Number of retry attempts                            |
+| createdAt     | DateTime | Creation timestamp                                  |
+| updatedAt     | DateTime | Last update timestamp                               |
 
 ### BigQuery Events Table
 
@@ -536,50 +591,6 @@ For detailed testing instructions, see [TESTING.md](./TESTING.md).
 
 For API usage examples, see [API_EXAMPLES.md](./API_EXAMPLES.md).
 
-## Project Structure
-
-```
-EventFlow/
-├── src/
-│   ├── config/          # Configuration (env, etc.)
-│   ├── db/              # Database client
-│   ├── middleware/      # Express middleware
-│   ├── routes/          # API routes
-│   ├── schemas/         # Zod validation schemas
-│   ├── services/        # Business logic services
-│   ├── utils/           # Utility functions
-│   ├── index.ts         # API server entry point
-│   └── worker.ts        # Worker service entry point
-├── prisma/
-│   └── schema.prisma    # Database schema
-├── .github/
-│   └── workflows/
-│       └── ci-cd.yml    # CI/CD pipeline
-├── Dockerfile           # API server Docker image
-├── Dockerfile.worker    # Worker Docker image
-└── README.md
-```
-
-## Best Practices Implemented
-
-- ✅ TypeScript for type safety
-- ✅ Schema validation with Zod
-- ✅ Structured logging with Pino
-- ✅ Error handling with custom error classes
-- ✅ Async/await throughout
-- ✅ Database connection pooling
-- ✅ Graceful shutdown handling
-- ✅ Environment variable validation with Zod
-- ✅ Docker multi-stage builds
-- ✅ Health check endpoints (Cloud Run compatible)
-- ✅ Retry logic with dead-letter queue
-- ✅ Admin endpoints for monitoring
-- ✅ Non-blocking BigQuery writes (failures don't affect API)
-- ✅ Background service initialization (fast startup)
-- ✅ Pub/Sub subscription auto-creation
-- ✅ BigQuery dataset/table auto-creation
-
 ## License
 
 MIT
-
