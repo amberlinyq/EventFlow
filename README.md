@@ -111,22 +111,24 @@ EventFlow is designed to handle high-volume event ingestion with reliable asynch
 - Publishes event ID to Pub/Sub for async processing
 - Returns success/error responses
 - BigQuery writes are non-blocking (failures don't affect API response)
-- Events are batched and flushed periodically (every 100 events or 30 seconds)
+- Events are batched and flushed automatically when buffer reaches 10 events
 
 **Request Example:**
-```json
-{
-  "eventType": "user.signup",
-  "payload": {
-    "userId": "123",
-    "email": "user@example.com",
-    "timestamp": "2024-01-01T00:00:00Z"
-  },
-  "metadata": {
-    "source": "web",
-    "version": "1.0"
-  }
-}
+```bash
+curl -X POST http://localhost:8080/events \
+  -H "Content-Type: application/json" \
+  -d '{
+    "eventType": "user.signup",
+    "payload": {
+      "userId": "123",
+      "email": "user@example.com",
+      "timestamp": "2024-01-01T00:00:00Z"
+    },
+    "metadata": {
+      "source": "web",
+      "version": "1.0"
+    }
+  }'
 ```
 
 **Response:**
@@ -186,6 +188,14 @@ Returns:
 - Request/response logging via middleware
 - Error logging with stack traces
 - Processing status logging
+- Configurable log levels via `LOG_LEVEL` environment variable
+
+### 6. Cloud Run Compatibility
+
+- Server starts listening immediately (before service initialization) for Cloud Run health checks
+- Services (database, Pub/Sub, BigQuery) initialize in the background
+- Graceful shutdown handles SIGTERM/SIGINT signals
+- BigQuery buffer is flushed during shutdown to prevent data loss
 
 ## Setup Instructions
 
@@ -210,10 +220,10 @@ Returns:
    ```
 
 3. **Set up environment variables**
-   Create a `.env` file:
+   Create a `.env` file (you can copy from `env.template`):
    ```env
    DATABASE_URL="postgresql://user:password@localhost:5432/eventflow?schema=public"
-   PORT=3000
+   PORT=8080
    NODE_ENV=development
    GCP_PROJECT_ID=your-project-id
    PUBSUB_TOPIC_NAME=events
@@ -247,18 +257,29 @@ Returns:
    ```bash
    npm run dev
    ```
+   
+   The server will:
+   - Start listening immediately on port 8080 (or PORT from .env) for Cloud Run compatibility
+   - Initialize database connection in the background
+   - Initialize Pub/Sub and BigQuery services in the background
+   - Log initialization status for each service
 
 7. **Start the worker (in a separate terminal)**
    ```bash
    npm run dev:worker
    ```
+   
+   The worker will:
+   - Create Pub/Sub subscription if it doesn't exist
+   - Listen for messages and process events
+   - Handle retries and dead-letter queue automatically
 
 ### Docker Deployment
 
 #### Build and run API server
 ```bash
 docker build -t eventflow-api -f Dockerfile .
-docker run -p 3000:3000 --env-file .env eventflow-api
+docker run -p 8080:8080 --env-file .env eventflow-api
 ```
 
 #### Build and run worker
@@ -414,7 +435,7 @@ Get processing metrics.
 ### Health Check
 
 #### GET /health
-Health check endpoint.
+Health check endpoint. Used by Cloud Run and load balancers to verify service availability.
 
 **Response:** `200 OK`
 ```json
@@ -424,19 +445,20 @@ Health check endpoint.
 }
 ```
 
+**Note:** The server starts listening immediately on startup, even while services are initializing in the background. This ensures Cloud Run health checks pass quickly.
+
 ## BigQuery Sandbox Compatibility
 
 This implementation is compatible with BigQuery Sandbox (free tier) by using **batch load jobs** instead of streaming inserts, which are not available in Sandbox.
 
 ### How It Works
 
-- Events are buffered in memory (up to 100 events)
-- Batches are flushed automatically:
-  - When buffer reaches 100 events, OR
-  - Every 30 seconds (whichever comes first)
+- Events are buffered in memory (default: 10 events)
+- Batches are flushed automatically when buffer reaches the batch size threshold
 - Load jobs are used to insert batches (Sandbox-compatible)
 - Temporary files are created and cleaned up automatically
 - Failed batches are re-queued to prevent data loss
+- Manual flush available via `bigqueryService.flush()` (called during graceful shutdown)
 
 ### Sandbox Limitations
 
@@ -448,8 +470,7 @@ This implementation is compatible with BigQuery Sandbox (free tier) by using **b
 ### Configuration
 
 The batching behavior can be adjusted in `src/services/bigquery.ts`:
-- `BATCH_SIZE`: Number of events before auto-flush (default: 100)
-- `FLUSH_INTERVAL_MS`: Time interval for periodic flush (default: 30000ms = 30 seconds)
+- `BATCH_SIZE`: Number of events before auto-flush (default: 10)
 
 ## Database Schema
 
@@ -485,10 +506,12 @@ The BigQuery table has the same schema as PostgreSQL but is optimized for analyt
 ```
 PENDING → PROCESSING → PROCESSED
     ↓
-  FAILED (retry) → PROCESSED
+  FAILED (retry) → PROCESSING → PROCESSED
     ↓
   FAILED (max retries) → DEAD_LETTER
 ```
+
+**Note:** Events are retried automatically via Pub/Sub message nack/ack mechanism. The worker checks retry count and acknowledges messages after max retries to prevent infinite retry loops.
 
 ### Retry Logic
 
@@ -508,6 +531,10 @@ npm test
 # Format code
 npm run format
 ```
+
+For detailed testing instructions, see [TESTING.md](./TESTING.md).
+
+For API usage examples, see [API_EXAMPLES.md](./API_EXAMPLES.md).
 
 ## Project Structure
 
@@ -542,12 +569,15 @@ EventFlow/
 - ✅ Async/await throughout
 - ✅ Database connection pooling
 - ✅ Graceful shutdown handling
-- ✅ Environment variable validation
+- ✅ Environment variable validation with Zod
 - ✅ Docker multi-stage builds
-- ✅ CI/CD with automated testing
-- ✅ Health check endpoints
+- ✅ Health check endpoints (Cloud Run compatible)
 - ✅ Retry logic with dead-letter queue
 - ✅ Admin endpoints for monitoring
+- ✅ Non-blocking BigQuery writes (failures don't affect API)
+- ✅ Background service initialization (fast startup)
+- ✅ Pub/Sub subscription auto-creation
+- ✅ BigQuery dataset/table auto-creation
 
 ## License
 
